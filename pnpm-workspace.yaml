@@ -1,0 +1,3 @@
+# pnpm 11 reads project settings from this file.
+# A flat node_modules avoids symlink issues with some Windows tools.
+nodeLinker: hoisted

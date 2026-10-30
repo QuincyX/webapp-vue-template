@@ -1,0 +1,34 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      vue-ecosystem:
+        patterns:
+          - vue
+          - vue-router
+          - pinia
+          - '@vue/*'
+          - '@vueuse/*'
+      tooling:
+        patterns:
+          - vite
+          - '@vitejs/*'
+          - vitest
+          - '@vitest/*'
+          - eslint*
+          - '@eslint/*'
+          - oxlint
+          - prettier*
+          - typescript
+          - vue-tsc
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

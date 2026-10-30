@@ -1,0 +1,51 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output
+dist
+dist-ssr
+coverage
+*.tsbuildinfo
+.eslintcache
+*.timestamp-*-*.mjs
+
+# Local development data (mock auth users)
+.data/
+
+# Environment overrides (never commit real secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+*.local
+
+# Tests and reports
+test-results/
+playwright-report/
+blob-report/
+__screenshots__/
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Operating system
+.DS_Store
+Thumbs.db
