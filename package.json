@@ -35,7 +35,7 @@
     "format:check": "prettier --check . --cache"
   },
   "dependencies": {
-    "@lucide/vue": "^1.61.0",
+    "@lucide/vue": "^1.62.0",
     "@vueuse/core": "^15.0.0",
     "axios": "^1.20.0",
     "pinia": "^4.1.0",
