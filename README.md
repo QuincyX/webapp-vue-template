@@ -62,13 +62,17 @@ pnpm preview
 - **总览仪表盘**：任务总量、完成率、逾期数量、近 7 天完成趋势、优先级分布与最近动态。
 - **任务管理**：创建、编辑、完成、删除，支持状态/优先级筛选、关键词搜索和多种排序。
 - **中英文 i18n**：完整界面文案切换、持久化语言偏好、`html lang`、文档标题、日期/数字格式与请求头同步更新。
-- **Axios 请求层**：统一实例、`baseURL`/超时配置、鉴权头、请求 ID、`Accept-Language`、401 处理和错误归一化。
+- **Axios 请求层**：统一实例、`baseURL`/超时配置、鉴权头、请求 ID、`Accept-Language`、会话失效集中判定与错误归一化。
+- **信封接口与缓存**：`{ code, data, message }` 类后端的解包适配器（含业务错误码），以及内存 + `localStorage` 的 TTL 缓存工具。
 - **本地优先**：任务、主题和语言会自动持久化到 `localStorage`，刷新或重启浏览器后仍在；账号身份由会话 API 恢复。
 - **数据边界校验**：环境变量、任务数据、导入 JSON、账号请求与表单都由 Zod 校验；损坏的本地数据会安全回退到示例数据。
 - **外观与偏好**：浅色、深色、跟随系统三种主题，首屏内联脚本消除主题闪烁。
 - **数据管理**：JSON 导入/导出、恢复示例数据、清空任务，破坏性操作均有确认弹窗。
 - **响应式与可访问性**：移动端抽屉导航、认证页响应式布局、焦点管理、Esc 关闭、焦点陷阱、`prefers-reduced-motion`、跳过导航链接和语义化表单。
+- **PWA**：manifest、Service Worker 自动更新、离线应用外壳、Chromium 安装按钮与 iOS「添加到主屏幕」引导。
 - **工程化**：严格 TypeScript、路径别名、ESLint + Oxlint + Prettier、Vitest、Playwright、GitHub Actions。
+- **结构门禁**：`pnpm check:components` 阻止页面入口退化成无逻辑的转发组件，已并入 `pnpm lint`。
+- **可复现发布**：`deploy/build.sh` 校验环境并按锁文件构建，`deploy/publish.sh` 按缓存策略分组的 S3 发布。
 
 ### 登录与账号
 
@@ -105,6 +109,7 @@ pnpm preview
 | 数据校验   | Zod                                       | 4.6.7              |
 | 组合式工具 | VueUse                                    | 15.0.0             |
 | 图标       | Lucide Vue                                | 1.61.0             |
+| PWA        | vite-plugin-pwa（Workbox 预缓存）         | 2.0.0              |
 | 单元测试   | Vitest + Vue Test Utils + jsdom           | 5.0.5              |
 | 端到端测试 | Playwright                                | 1.64.1             |
 | 代码质量   | ESLint + Oxlint + Prettier                | 10.13 / 1.89 / 3.9 |
@@ -145,16 +150,31 @@ pnpm type-check            # TS7 检查 .ts / 配置，vue-tsc 使用 TS6 API �
 │   ├── pull_request_template.md
 │   └── workflows/ci.yml        # 文档、格式、Lint、类型、单测、构建、E2E
 ├── AGENTS.md                   # Agent 协作硬性规则
-├── deploy/nginx.conf           # history 路由的 Nginx 部署示例
+├── deploy/
+│   ├── build.sh                # 可复现发布构建（校验环境 + 构建 + 产物断言）
+│   ├── publish.sh              # S3 发布（按缓存策略分组）
+│   ├── deploy.env.example      # 发布凭据与目标配置示例
+│   └── nginx.conf              # history 路由的 Nginx 部署示例
 ├── docs/
 │   ├── README.md               # 文档索引与治理规则
 │   ├── architecture.md         # 分层、数据流、模块边界
 │   ├── engineering.md          # 环境、命令、质量门禁、约束
 │   ├── framework-changelog.md  # 框架变更记录
 │   └── *.png                   # README 截图
-├── e2e/app.spec.ts             # Playwright 端到端用例
-├── public/favicon.svg
-├── scripts/check-docs.mjs      # 文档存在性与相对链接检查
+├── e2e/
+│   ├── helpers.ts              # 登录、清理会话、横向溢出断言
+│   ├── fixtures.ts             # 网络层假接口（CORS/OPTIONS/自动清理）
+│   ├── auth.spec.ts            # 守卫、回跳、注册、改密、表单校验
+│   ├── tasks.spec.ts           # 仪表盘、任务、移动端抽屉
+│   ├── settings.spec.ts        # 主题、语言、后端连接成败
+│   └── responsive.spec.ts      # 390 / 768 / 1440 无横向溢出
+├── public/
+│   ├── favicon.svg
+│   ├── apple-touch-icon.png    # iOS 主屏图标（PNG，180×180）
+│   └── icons/                  # PWA 192/512 与 maskable 变体
+├── scripts/
+│   ├── check-docs.mjs          # 文档存在性与相对链接检查
+│   └── check-components.mjs    # 纯转发组件检查
 ├── server/
 │   └── auth-mock.ts            # 仅开发/预览/E2E 的本地鉴权 API
 ├── specs/
@@ -165,8 +185,9 @@ pnpm type-check            # TS7 检查 .ts / 配置，vue-tsc 使用 TS6 API �
 ├── src/
 │   ├── __tests__/              # Vitest 测试与 setup
 │   ├── api/
-│   │   ├── http.ts             # Axios 实例与请求/响应拦截器
+│   │   ├── http.ts             # Axios 实例、拦截器、会话失效判定
 │   │   ├── errors.ts           # ApiError 与错误归一化
+│   │   ├── envelope.ts         # { code, data, message } 信封解包
 │   │   ├── token.ts            # Access Token 读写
 │   │   ├── auth.ts             # 注册/登录/会话/资料/密码
 │   │   ├── system.ts           # /health 健康检查
@@ -176,8 +197,8 @@ pnpm type-check            # TS7 检查 .ts / 配置，vue-tsc 使用 TS6 API �
 │   │   ├── brand/              # 品牌 Logo
 │   │   ├── layout/             # 侧边栏、顶栏
 │   │   ├── tasks/              # 任务表单、列表项、徽标
-│   │   └── ui/                 # Modal、Toast、主题/语言切换
-│   ├── composables/            # useTheme、useToast、useCurrentTime
+│   │   └── ui/                 # Modal、Toast、主题/语言切换、安装入口
+│   ├── composables/            # 主题、Toast、时间、表单、API 错误文案、安装引导
 │   ├── config/env.ts           # 运行时环境变量校验
 │   ├── constants/task.ts       # 状态/优先级展示元数据
 │   ├── data/                   # 本地示例任务
@@ -188,9 +209,9 @@ pnpm type-check            # TS7 检查 .ts / 配置，vue-tsc 使用 TS6 API �
 │   │   ├── AuthLayout.vue      # 登录/注册页壳
 │   │   └── DefaultLayout.vue
 │   ├── router/index.ts         # 懒加载路由、认证守卫、标题、滚动
-│   ├── stores/                 # Pinia：Auth、任务、单例实例
+│   ├── stores/                 # Pinia：Auth、任务、health 远端范式、单例实例
 │   ├── types/                  # Zod Schema 与领域类型
-│   ├── utils/                  # 日期、安全 redirect
+│   ├── utils/                  # 日期、安全 redirect、TTL 缓存
 │   ├── views/                  # 每个地址一个目录，入口固定 index.vue
 │   │   ├── home/index.vue      # /
 │   │   ├── tasks/index.vue     # /tasks
@@ -218,6 +239,9 @@ pnpm type-check            # TS7 检查 .ts / 配置，vue-tsc 使用 TS6 API �
 pnpm dev
 pnpm build
 pnpm preview
+pnpm check:components   # 纯转发组件检查（已并入 pnpm lint）
+bash deploy/build.sh    # 可复现发布构建
+bash deploy/publish.sh  # 发布到 S3（需要 S3_BUCKET）
 ```
 
 类型检查拆分、Lint、格式化、单元测试、文档检查、E2E 和完整质量门禁的权威说明见 [docs/engineering.md](./docs/engineering.md#3-命令)。
@@ -386,27 +410,58 @@ export default defineConfig({
 
 组件、工具和类型都显式导入，路径统一使用 `@/` 别名。自动导入、语言包预编译等能力按需再引入，避免在项目早期藏起依赖关系。
 
+### 7. 远端 Store 范式
+
+`src/stores/health.ts` 是接第一个真实接口时的参照实现：请求单飞（重复点击复用同一个 Promise）、只向视图暴露 `errorCode: ApiErrorCode`、派生状态用 `computed`、不为无意义的状态做持久化。带筛选或分页的列表额外要求请求竞态防护与缓存优先，规则见 [架构说明 §6.3](./docs/architecture.md#63-远端-store错误码单飞与缓存)。
+
+视图不手拼 `apiError.<code>` 字符串，统一用 `useApiError()` 翻译；会话失效只在 `src/api/http.ts` 的 `shouldClearSession()` 一处判定。
+
+### 8. 信封接口与 TTL 缓存
+
+后端返回 `{ code, data, message }` 时用 `src/api/envelope.ts`：一次完成解包、业务码判定和 Zod 校验，失败归一化为 `ApiError`（`code: 'business'` 保留后端 message）。读多写少的数据可放入 `src/utils/localCache.ts`（内存 + `localStorage`，默认 TTL 30 分钟，`peek` 支持 stale-while-revalidate）；用户拥有的状态不进 TTL 缓存。
+
+### 9. PWA
+
+`vite-plugin-pwa` 在构建时生成 manifest 与 Workbox Service Worker（`autoUpdate`），开发服务器不注册。应用外壳离线可打开，`/api/*` 不在预缓存内。安装入口在设置页：Chromium 显示「安装到设备」，iOS 显示「分享 → 添加到主屏幕」，独立运行或已安装时不渲染。名称来自 `VITE_APP_TITLE`，图标位于 `public/icons/`。
+
 ## 测试策略
 
 - **单元测试**：任务 Store 的增删改查、持久化、导入导出、错误数据拒绝、排序规则；Auth Store 的会话恢复、登录/退出/401/密码变更与 Zod 校验；日期工具在本地时区下的边界；任务列表组件事件；Axios 拦截器的鉴权、语言头、请求 ID 与 401 归一化。
-- **端到端测试**：未登录守卫与原路径回跳、注册/登录/刷新会话/退出、资料修改、密码修改后旧凭据失效、任务创建与持久化、主题切换持久化、移动端抽屉导航、中英文切换与刷新持久化。
-- **CI 顺序**：文档链接检查 → 格式检查 → Lint → 类型检查（TS7 + vue-tsc）→ 单测 → 构建 → Playwright E2E；失败时上传 Playwright 报告。
+- **端到端测试**（按域拆分）：`auth`（守卫与原路径回跳、注册/刷新会话/退出、资料修改、改密后旧凭据失效、登录与注册表单校验）、`tasks`（任务创建/完成/持久化、移动端抽屉）、`settings`（主题与语言持久化、后端连接成功与 5xx 失败并显示请求 ID）、`responsive`（390/768/1440 无横向溢出）。
+- **E2E 假接口**：`e2e/fixtures.ts` 用 `page.route` 在网络层拦截，自动处理 CORS 预检并在用例结束后清理；`e2e/helpers.ts` 收敛登录与断言，避免各 spec 复制。
+- **CI 顺序**：文档链接检查 → 格式检查 → Lint（含组件结构检查）→ 类型检查（TS7 + vue-tsc）→ 单测 → 构建 → Playwright E2E；失败时上传 Playwright 报告。
 - 完整命令、质量门禁和故障处理以 [docs/engineering.md](./docs/engineering.md#4-完整质量门禁) 为准；本文不重复维护完整脚本表。
 
 ## 部署
 
 `pnpm build` 产物位于 `dist/`，可部署到任意静态托管。Vue Router 使用 history 模式，服务器必须把未知路径回退到 `index.html`。仓库提供了 [deploy/nginx.conf](./deploy/nginx.conf) 示例，包含 SPA fallback、静态资源长缓存和基础安全响应头。
 
+仓库还提供两条发布脚本：
+
+```bash
+bash deploy/build.sh --with-tests   # 校验 Node/pnpm、冻结锁文件安装、构建、断言 dist 产物
+bash deploy/publish.sh --build      # 上传 S3：assets/ immutable，入口与 SW/manifest no-cache
+```
+
+- `STRICT_ENV=1 bash deploy/build.sh` 会在检测到 `.env.local` 时失败，避免本地调试配置进入生产。
+- S3 目标与凭据来自环境变量或 `deploy/deploy.env.local`（复制 [deploy.env.example](./deploy/deploy.env.example)，已被 Git 忽略）。
+- 不使用 S3 时只取 `dist/`，用 nginx 或任意 CDN 托管，注意把 `index.html`、`sw.js` 与 `manifest.webmanifest` 设为 `no-cache`。
+
 账号模块还需要真实后端提供 `/api/auth/*` 与 `/api/health`；`server/auth-mock.ts` 只服务于本地开发与 E2E，不会打包进静态产物。生产需按 [账号接口契约](./specs/001-account-auth/plan.md#数据与接口) 实现服务端，并配置 Cookie/CSRF、限流和审计。
 
 部署到子路径时，在 `vite.config.ts` 增加：
 
 ```ts
-export default defineConfig({
-  base: '/your-sub-path/',
+export default defineConfig(({ mode }) => {
   // ...
+  return {
+    base: '/your-sub-path/',
+    // ...
+  }
 })
 ```
+
+子路径部署时还要同步 PWA 的 `start_url` 与 `scope`（`vite.config.ts` 中的 `VitePWA.manifest`）。
 
 路由已使用 `createWebHistory(import.meta.env.BASE_URL)`，无需额外改动。
 

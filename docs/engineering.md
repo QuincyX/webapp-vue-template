@@ -39,27 +39,45 @@ pnpm dev
 
 **这不是生产鉴权服务。** 生产静态部署必须由真实后端实现同一契约，包括数据库、限流、审计、邮件、Cookie/CSRF 和密钥管理。接口契约见 [001 账号模块计划](../specs/001-account-auth/plan.md#数据与接口)。不接入第三方登录。
 
+### 2.2 PWA 与 Service Worker
+
+- `vite-plugin-pwa` 只在 `pnpm build` 产物中注册 Service Worker（`registerType: 'autoUpdate'`）。
+- 开发服务器不注册（`devOptions.enabled = false`），因此 `pnpm dev` 不会出现旧壳缓存问题。
+- 验证安装与离线能力必须用生产产物：
+
+```bash
+pnpm build
+pnpm preview
+```
+
+- 桌面 Chromium：地址栏出现安装图标，或设置页「安装到设备」；iOS Safari 只能走「分享 → 添加到主屏幕」。
+- E2E 通过 `serviceWorkers: 'block'` 屏蔽 SW，保证用例可重复；需要验证 SW 时单独跑手工检查，不要塞进主用例。
+- 应用外壳离线可打开，`/api/*` 不在预缓存内，离线时接口按错误态处理。
+
 ## 3. 命令
 
-| 命令                   | 用途                             | 是否进入 CI           |
-| ---------------------- | -------------------------------- | --------------------- |
-| `pnpm dev`             | Vite 开发服务器                  | 否                    |
-| `pnpm build`           | 类型检查 + 生产构建              | 是                    |
-| `pnpm preview`         | 预览生产产物                     | E2E 的 CI 路径        |
-| `pnpm docs:check`      | 关键文档存在性与相对链接检查     | 是                    |
-| `pnpm format:check`    | Prettier 检查                    | 是                    |
-| `pnpm format`          | 格式化并写回                     | 否                    |
-| `pnpm lint`            | Oxlint + ESLint，只检查          | 是                    |
-| `pnpm lint:fix`        | 自动修复可修复问题               | 否                    |
-| `pnpm type-check`      | TS7 应用/配置检查 + Vue SFC 检查 | 是                    |
-| `pnpm type-check:app`  | 使用 TS7 检查 `.ts`              | 否                    |
-| `pnpm type-check:node` | 使用 TS7 检查 Node 配置          | 否                    |
-| `pnpm type-check:vue`  | 使用 vue-tsc 检查 SFC（TS6 API） | 是（并入 type-check） |
-| `pnpm test:unit`       | Vitest watch                     | 否                    |
-| `pnpm test:unit:run`   | 单测单次运行                     | 是                    |
-| `pnpm test:coverage`   | V8 覆盖率                        | 否                    |
-| `pnpm test:e2e`        | Playwright，自动管理服务器       | 是                    |
-| `pnpm test:e2e:ui`     | Playwright UI 调试               | 否                    |
+| 命令                     | 用途                             | 是否进入 CI           |
+| ------------------------ | -------------------------------- | --------------------- |
+| `pnpm dev`               | Vite 开发服务器                  | 否                    |
+| `pnpm build`             | 类型检查 + 生产构建              | 是                    |
+| `pnpm preview`           | 预览生产产物                     | E2E 的 CI 路径        |
+| `pnpm docs:check`        | 关键文档存在性与相对链接检查     | 是                    |
+| `pnpm check:components`  | 纯转发组件检查（lint 的第一道）  | 是（并入 lint）       |
+| `pnpm format:check`      | Prettier 检查                    | 是                    |
+| `pnpm format`            | 格式化并写回                     | 否                    |
+| `pnpm lint`              | Oxlint + ESLint，只检查          | 是                    |
+| `pnpm lint:fix`          | 自动修复可修复问题               | 否                    |
+| `pnpm type-check`        | TS7 应用/配置检查 + Vue SFC 检查 | 是                    |
+| `pnpm type-check:app`    | 使用 TS7 检查 `.ts`              | 否                    |
+| `pnpm type-check:node`   | 使用 TS7 检查 Node 配置          | 否                    |
+| `pnpm type-check:vue`    | 使用 vue-tsc 检查 SFC（TS6 API） | 是（并入 type-check） |
+| `pnpm test:unit`         | Vitest watch                     | 否                    |
+| `pnpm test:unit:run`     | 单测单次运行                     | 是                    |
+| `pnpm test:coverage`     | V8 覆盖率                        | 否                    |
+| `pnpm test:e2e`          | Playwright，自动管理服务器       | 是                    |
+| `pnpm test:e2e:ui`       | Playwright UI 调试               | 否                    |
+| `bash deploy/build.sh`   | 可复现发布构建（校验环境+构建）  | 否（本地/发布流水线） |
+| `bash deploy/publish.sh` | 上传 dist/ 到 S3（缓存策略分组） | 否                    |
 
 ## 4. 完整质量门禁
 
@@ -68,10 +86,16 @@ pnpm dev
 ```bash
 pnpm docs:check
 pnpm format:check
-pnpm lint
+pnpm lint            # 含 check:components
 pnpm type-check
 pnpm test:unit:run
 pnpm build
+```
+
+涉及发布流程、`vite.config.ts` 或 `deploy/` 时，再执行一次发布构建脚本，确认环境校验与产物断言未被破坏：
+
+```bash
+bash deploy/build.sh --skip-install
 ```
 
 涉及路由、交互、主题、语言或持久化时，再执行：
@@ -174,6 +198,7 @@ pnpm test:e2e
 - 页面私有的子组件、composables、数据、类型和资源放在该页面目录内，可继续分子目录；**只能被当前页面目录引用**。
 - 页面目录之间禁止互相导入。需要复用时先提升到 `src/components/`、`src/composables/`、`src/stores/`、`src/types/`、`src/utils/` 或 `src/api/`；共享层也不得反向导入页面目录。
 - 路由只引用页面的 `index.vue`；不要新增 `src/views/FooView.vue` 这类平铺页面文件。
+- 禁止纯转发组件：不得出现「只 import 同目录组件 + 原样渲染」的空壳；`pnpm check:components` 会拦截，修复方式是合并实现或补上页面职责。
 - 共享 UI 放 `src/components/ui/`，应用壳放 `src/components/layout/`，任务示例组件放 `src/components/tasks/`。
 - Props/emits 使用类型声明，不用运行时 `any` 兜底。
 - 可复用逻辑放 `src/composables/`，不复制多个页面。
@@ -186,6 +211,8 @@ pnpm test:e2e
 - 持久化键必须带版本号，并写明在 [架构说明](./architecture.md#5-状态与数据所有权)。
 - 读取持久化数据必须通过 Schema 校验，失败要安全回退。
 - 视图不直接读写业务 `localStorage`。
+- 读多写少的数据（列表、目录、字典）可用 `src/utils/localCache.ts`，键必须包含全部筛选维度并设 TTL；**用户拥有的状态不得进 TTL 缓存**。
+- 远端 Store 参考 [health.ts](../src/stores/health.ts)：请求单飞、只暴露 `errorCode`、派生值走 `computed`；列表另加请求竞态与缓存优先，详见 [架构说明](./architecture.md#63-远端-store错误码单飞与缓存)。
 - 主题和语言是基础设施状态，分别由 `useTheme`、i18n 模块管理。
 - 当前账号是服务端会话状态，由 [Auth Store](../src/stores/auth.ts) 唯一持有；不写入本地 profile 存储。
 - 旧 `orbit.profile.v1` 不再读取；不要为兼容旧示例资料新增迁移层。
@@ -194,9 +221,10 @@ pnpm test:e2e
 
 - 所有 HTTP 请求走 `src/api/`。
 - 外部响应必须经 Zod 校验。
-- 错误统一为 `ApiError`，使用 `code` 做 i18n 展示。
+- 错误统一为 `ApiError`，使用 `code` 做 i18n 展示；视图用 `useApiError()` 翻译，不手拼 `apiError.<code>`。
 - 组件不得感知 Axios 的 error/config/response 结构。
-- 401 处理集中在一个响应拦截器中；不要在页面重复清理 token。
+- 后端使用 `{ code, data, message }` / `{ error, msg, data }` 信封时，用 `src/api/envelope.ts` 的 `envelopeRequest()` 解包并校验；不要在页面里判断业务码。
+- 会话失效只由 `src/api/http.ts` 的 `shouldClearSession()` 判定；不要新增第二处 token 清理或 401 判断。
 - 新增环境变量必须同时更新：
   - `env.d.ts`
   - `src/config/env.ts`
@@ -228,12 +256,14 @@ pnpm test:e2e
 - 本地 token 是示例；生产应使用更安全的会话机制。
 - 本地鉴权适配层使用 scrypt 哈希和随机 token，但仍是开发工具，不得作为生产服务部署。
 - 登录失败返回通用凭据错误，不暴露邮箱是否存在；注册重复邮箱例外（409）。
+- Service Worker 只预缓存构建产物，不缓存 API 响应、token 或用户数据；`/api/` 已在 `navigateFallbackDenylist` 中排除。
 
 ## 7. 依赖策略
 
 - 新增依赖前先确认现有库能否解决。
 - 禁止同时引入两套同类基础库。
 - 明确依赖用途，并在框架变更记录中写明。
+- 当前唯一的构建期框架依赖是 `vite-plugin-pwa`（manifest + Workbox 预缓存）。不要再用第二个 PWA/SW 插件；需要自定义 SW 逻辑时改它的 `workbox` 配置，而不是另建 `public/sw.js`。
 - 大版本升级必须：
   1. 阅读 breaking changes。
   2. 更新锁文件。
@@ -253,6 +283,9 @@ pnpm test:e2e
 - 不为通过测试而删断言或跳过测试。
 - E2E 使用本地鉴权适配层；`demo@orbit.app` 只读使用，注册/改密场景使用唯一邮箱，避免污染演示账号。
 - `.data/auth-users.json` 不进入版本库；测试不得依赖其中已有的非演示账号。
+- E2E 按域拆分（`auth`/`tasks`/`settings`/`responsive`），公共步骤放 `e2e/helpers.ts`，不要复制登录流程。
+- 需要模拟失败、超时或业务错误码时，用 `e2e/fixtures.ts` 的 `api.fail()` / `api.mock()` 在网络层拦截；**不要为了测试修改应用代码**，也不要依赖 mock 服务端新增“仅测试”接口。
+- 布局改动必须跑 `responsive.spec.ts`（390/768/1440 无横向溢出）；新增页面时把该页纳入溢出断言。
 
 ## 9. CI 与部署
 
@@ -269,7 +302,20 @@ CI 在 `.github/workflows/ci.yml` 中按顺序执行：
 9. Playwright E2E
 10. 失败时上传 Playwright 报告
 
-部署使用 `dist/` 静态产物和 SPA history fallback，参考 [deploy/nginx.conf](../deploy/nginx.conf)。账号模块要求生产环境提供真实 `/api/auth/*` 与 `/api/health`；本地 Vite 插件不会进入静态产物。部署行为变化必须更新 README 和本文。
+CI 额外执行 `bash -n deploy/build.sh` / `bash -n deploy/publish.sh` 语法检查，避免发布脚本在真正发布时才发现错误。
+
+发布流程：
+
+```bash
+bash deploy/build.sh --with-tests   # 校验 Node/pnpm、冻结锁文件安装、清理 dist、构建、断言产物
+bash deploy/publish.sh              # 上传 S3（需要 S3_BUCKET）
+```
+
+- `deploy/build.sh` 不读 stdin，`STRICT_ENV=1` 时遇到 `.env.local` 直接失败，避免本地调试配置进入生产产物。
+- `deploy/publish.sh` 分离缓存策略：`assets/*` 为 `immutable`（1 年），`index.html` / `sw.js` / `registerSW.js` / `workbox-*.js` / `manifest.webmanifest` 为 `no-cache`，其余 1 小时。
+- 不使用 S3 时，把 `dist/` 交给任意静态托管，SPA fallback 参考 [deploy/nginx.conf](../deploy/nginx.conf)；history 路由必须回退到 `index.html`。
+- 账号模块要求生产环境提供真实 `/api/auth/*` 与 `/api/health`；本地 Vite 插件不会进入静态产物。
+- 部署行为变化必须更新 README 和本文。
 
 ## 10. Pull Request 要求
 
@@ -310,6 +356,27 @@ pnpm exec tsc6 --version   # 6.0.x
 ### `docs:check` 失败
 
 按报错修正文档中的相对链接或缺失的关键文档；不要删除检查脚本。
+
+### `check:components` 报出纯转发组件
+
+页面入口只做了 `import Page from './components/Page.vue'` + `<Page />`。把子组件内容合并进 `index.vue`，或让入口承担自己的状态、模板编排或页面配置（例如给共享组件绑定页面参数）。不要给脚本加忽略名单。
+
+### E2E 打开的是另一个应用
+
+`playwright.config.ts` 在非 CI 模式下 `reuseExistingServer: true`，并且固定使用 5173。若同机还有别的 Vite 项目占用该端口，用例会连到那个应用并在登录页超时（典型现象：出现不属于本模板的弹窗或文案）。
+
+处理：确认 `lsof -nP -iTCP:5173 -sTCP:LISTEN` 指向本仓库；或直接用 CI 模式跑生产预览（4173，不复用已有服务）：
+
+```bash
+CI=true pnpm test:e2e
+```
+
+### 发布后仍看到旧页面 / 静态资源 404
+
+1. 确认入口文件是 `no-cache`：`index.html`、`sw.js`、`registerSW.js`、`workbox-*.js`、`manifest.webmanifest`。
+2. 确认 `assets/*` 是 `immutable`，且部署时没有把新 `index.html` 与旧 `assets/` 混在一起。
+3. 本地复现用 `pnpm build && pnpm preview`，`pnpm dev` 不注册 Service Worker，无法复现此类问题。
+4. 浏览器已安装的旧 SW 需要一次刷新完成 `autoUpdate`；必要时在 DevTools → Application → Service Workers 中注销后重试。
 
 ## 12. 完成定义
 

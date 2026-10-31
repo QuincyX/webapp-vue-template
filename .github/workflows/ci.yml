@@ -51,6 +51,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Check release scripts
+        run: |
+          bash -n deploy/build.sh
+          bash -n deploy/publish.sh
+
       - name: Type-check
         run: pnpm type-check
 
@@ -59,6 +64,12 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Verify PWA artifacts
+        run: |
+          test -f dist/manifest.webmanifest
+          test -f dist/sw.js
+          test -f dist/icons/icon-512.png
 
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium

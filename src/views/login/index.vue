@@ -1,26 +1,19 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Eye, EyeOff, LoaderCircle, LockKeyhole, Mail } from '@lucide/vue'
 
-import { isApiError } from '@/api/errors'
+import { useLoginForm } from '@/composables/useLoginForm'
 import { useToast } from '@/composables/useToast'
-import { useAuthStore } from '@/stores/auth'
-import { loginInputSchema, type LoginInput } from '@/types/auth'
 import { getSafeRedirect } from '@/utils/redirect'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
 const { toast } = useToast()
 
-const form = reactive<LoginInput>({ email: '', password: '' })
-const errors = reactive<{ email?: string; password?: string }>({})
-const formError = ref('')
-const showPassword = ref(false)
-const submitting = computed(() => auth.pending)
+const { form, errors, formError, showPassword, submitting, submit } = useLoginForm()
 const showDemoHint = import.meta.env.DEV
 
 const registerLink = computed(() => {
@@ -28,48 +21,11 @@ const registerLink = computed(() => {
   return redirect ? { name: 'register', query: { redirect } } : { name: 'register' }
 })
 
-function resetErrors(): void {
-  errors.email = undefined
-  errors.password = undefined
-  formError.value = ''
-}
-
-function validate(): boolean {
-  resetErrors()
-  const result = loginInputSchema.safeParse(form)
-  if (result.success) return true
-
-  for (const issue of result.error.issues) {
-    const field = issue.path[0]
-    if ((field === 'email' || field === 'password') && !errors[field]) {
-      errors[field] = t(issue.message)
-    }
-  }
-
-  return false
-}
-
-function resolveSubmitError(error: unknown): string {
-  if (isApiError(error)) {
-    if (error.status === 401 || error.status === 400) return t('auth.error.invalidCredentials')
-    if (error.status === 429) return t('auth.error.tooManyAttempts')
-    if (error.code === 'network' || error.code === 'timeout') return t('auth.error.network')
-  }
-
-  return t('auth.error.generic')
-}
-
 async function handleSubmit(): Promise<void> {
-  if (!validate()) return
+  if (!(await submit())) return
 
-  try {
-    await auth.login(form)
-    toast({ title: t('auth.login.success'), variant: 'success' })
-    const target = getSafeRedirect(route.query.redirect, '/')
-    await router.replace(target)
-  } catch (error) {
-    formError.value = resolveSubmitError(error)
-  }
+  toast({ title: t('auth.login.success'), variant: 'success' })
+  await router.replace(getSafeRedirect(route.query.redirect, '/'))
 }
 </script>
 

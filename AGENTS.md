@@ -37,7 +37,8 @@ DSH 会自动加载本文件；其他不自动加载仓库指令的工具，开�
 这是一个**通用 Vue 3 + Vite + TypeScript 工程模板**，不是某个具体产品的代码仓库。
 
 - 任务工作台是用于展示工程能力的业务示例，不是产品需求的边界。
-- 不要擅自引入兄弟目录 `../aiv_unity` 的业务概念（认证、模板、生成任务、积分、支付、PWA 等）；已确认的 [001 账号模块](./specs/001-account-auth/spec.md) 是本项目例外，后续扩展仍需用户明确要求。
+- 不要擅自引入兄弟目录 `../aiv_unity` 的业务概念（模板、生成任务、积分、支付等）；已确认的 [001 账号模块](./specs/001-account-auth/spec.md) 是本项目例外，后续扩展仍需用户明确要求。
+- PWA 安装与服务端离线外壳已作为框架能力内置（见 [docs/architecture.md](./docs/architecture.md#68-pwaservice-worker-与安装)）；不要为单个示例重复搭建第二套 manifest 或 Service Worker。
 - 不要把 starter 改造成一个重业务产品；除非用户明确要求。
 - 新增能力优先沉淀为可复用的框架能力，而不是某个页面的临时补丁。
 
@@ -128,6 +129,7 @@ DSH 会自动加载本文件；其他不自动加载仓库指令的工具，开�
 7. **公共类型/数据边界优先复用 `src/types/` 的 Zod Schema**，避免为同一结构复制多份类型。
 8. **不得引入第二套同类基础库**（第二个 HTTP 客户端、第二套状态库、第二套 i18n 库等），除非有明确理由并记录到框架变更记录。
 9. **页面目录边界**。新建页面必须创建 `src/views/<page>/index.vue`，目录名对应页面地址：`/foo` → `src/views/foo/index.vue`，根路径 `/` 使用 `src/views/home/index.vue`，404 使用 `src/views/not-found/index.vue`。页面私有的 Vue 子组件、composables、数据、类型和页面专用资源必须放在该页面目录内（可继续分子目录），且只能被该页面目录引用；禁止从其他页面目录导入。跨页面复用的代码必须先提升到 `src/components/`、`src/composables/`、`src/stores/`、`src/types/` 或 `src/utils/` 等共享层，再被多个页面引用。路由只允许引用页面的 `index.vue`，不得新增 `src/views/FooView.vue` 这类平铺页面文件。
+10. **禁止纯转发组件**。一个 `.vue` 文件不得只包含“导入同目录私有组件 + 原样渲染（无自有状态/生命周期/模板结构）”。`src/views/<page>/index.vue` 必须是页面实现本身，不能是 `./components/<Page>.vue` 的空壳；需要子组件时，子组件必须由页面模板编排，或承担可复用的独立职责。页面入口可以为共享组件绑定页面配置，也可保留路由/SEO 配置，但不得用无逻辑的外壳延长调用链。触发条件：新增或改动页面入口或组件时；动作：合并空壳或补上页面职责；验证：`pnpm check:components`（`pnpm lint` 的第一道检查）。
 
 ## 5. 工具链约束
 
@@ -222,6 +224,7 @@ DSH 会自动加载本文件；其他不自动加载仓库指令的工具，开�
 - [ ] `pnpm type-check` 通过
 - [ ] `pnpm test:unit:run` 通过
 - [ ] `pnpm build` 通过
+- [ ] 涉及构建/发布脚本或 `vite.config.ts` 时，`bash deploy/build.sh --skip-install` 通过
 - [ ] 涉及交互/路由/主题/语言时，`pnpm test:e2e` 通过
 - [ ] 非平凡业务功能有 spec/plan/tasks，且 `verification.md` 为 `Verified`
 - [ ] 非平凡任务有明确的验收证据

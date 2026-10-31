@@ -2,7 +2,14 @@ import { fileURLToPath } from 'node:url'
 
 import { configDefaults, defineConfig, mergeConfig } from 'vitest/config'
 
-import viteConfig from './vite.config.ts'
+import viteConfigSource from './vite.config.ts'
+
+// `vite.config.ts` exports a function because it reads `VITE_APP_TITLE` for the
+// PWA manifest. `mergeConfig` needs a resolved object, so resolve it once here.
+const viteConfig =
+  typeof viteConfigSource === 'function'
+    ? viteConfigSource({ command: 'serve', mode: 'test' })
+    : viteConfigSource
 
 export default mergeConfig(
   viteConfig,

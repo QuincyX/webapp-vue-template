@@ -26,23 +26,26 @@ import {
   XCircle,
 } from '@lucide/vue'
 
-import { isApiError, systemApi } from '@/api'
+import { isApiError } from '@/api'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import InstallApp from '@/components/ui/InstallApp.vue'
 import LocaleSwitcher from '@/components/ui/LocaleSwitcher.vue'
+import { useApiError } from '@/composables/useApiError'
 import { useTheme, type ThemeMode } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
 import { env } from '@/config/env'
 import { useAuthStore } from '@/stores/auth'
+import { useHealthStore } from '@/stores/health'
 import { useTaskStore } from '@/stores/tasks'
 import { passwordInputSchema, profileInputSchema } from '@/types/auth'
 import { formatDateTime, toDateInputValue } from '@/utils/date'
 
 type ConfirmAction = 'reset' | 'clear' | null
-type ApiCheckState = 'idle' | 'loading' | 'success' | 'error'
 
 const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
+const health = useHealthStore()
 const taskStore = useTaskStore()
 const { toast } = useToast()
 const { mode, setMode } = useTheme()
@@ -63,11 +66,6 @@ const passwordError = ref('')
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const confirmAction = ref<ConfirmAction>(null)
-
-const apiState = ref<ApiCheckState>('idle')
-const apiLatency = ref<number | null>(null)
-const apiErrorCode = ref<string | null>(null)
-const apiRequestId = ref<string | null>(null)
 
 const themeOptions = computed<
   { value: ThemeMode; label: string; description: string; icon: Component }[]
@@ -123,6 +121,12 @@ const confirmContent = computed(() => {
   }
 })
 
+const apiState = computed(() => health.status)
+const apiLatency = computed(() => health.latencyMs)
+const apiRequestId = computed(() => health.requestId)
+const { codeToMessage } = useApiError()
+const apiErrorMessage = computed(() => codeToMessage(health.errorCode))
+
 const apiStateLabel = computed(() => {
   if (apiState.value === 'loading') return t('settings.api.testing')
   if (apiState.value === 'success') return t('settings.api.success')
@@ -136,8 +140,6 @@ const apiStateStyle = computed(() => {
   if (apiState.value === 'error') return 'bg-rose-500/10 text-rose-700 ring-rose-500/20'
   return 'bg-muted text-muted-foreground ring-border'
 })
-
-const apiErrorMessage = computed(() => t(`apiError.${apiErrorCode.value ?? 'unknown'}`))
 
 function clearProfileError(field: string): void {
   delete profileErrors[field]
@@ -289,34 +291,22 @@ function runConfirmedAction(): void {
 }
 
 async function checkBackendConnection(): Promise<void> {
-  apiState.value = 'loading'
-  apiLatency.value = null
-  apiErrorCode.value = null
-  apiRequestId.value = null
+  const ok = await health.check()
 
-  const startedAt = performance.now()
-
-  try {
-    await systemApi.health()
-    apiLatency.value = Math.round(performance.now() - startedAt)
-    apiState.value = 'success'
-
+  if (ok) {
     toast({
       title: t('settings.api.success'),
-      description: t('settings.api.successDescription', { latency: apiLatency.value }),
+      description: t('settings.api.successDescription', { latency: health.latencyMs ?? 0 }),
       variant: 'success',
     })
-  } catch (error) {
-    apiState.value = 'error'
-    apiErrorCode.value = isApiError(error) ? error.code : 'unknown'
-    apiRequestId.value = isApiError(error) ? (error.requestId ?? null) : null
-
-    toast({
-      title: t('settings.api.failure'),
-      description: t(`apiError.${apiErrorCode.value}`),
-      variant: 'error',
-    })
+    return
   }
+
+  toast({
+    title: t('settings.api.failure'),
+    description: t(`apiError.${health.errorCode ?? 'unknown'}`),
+    variant: 'error',
+  })
 }
 </script>
 
@@ -712,6 +702,8 @@ async function checkBackendConnection(): Promise<void> {
             </p>
           </div>
         </section>
+
+        <InstallApp />
 
         <section class="card animate-rise" style="animation-delay: 200ms">
           <div class="flex items-center gap-3 border-b border-border/70 px-5 py-4 sm:px-6">

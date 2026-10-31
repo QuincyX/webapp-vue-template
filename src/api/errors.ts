@@ -1,7 +1,14 @@
 import axios, { type AxiosError } from 'axios'
 
 export type ApiErrorCode =
-  'network' | 'timeout' | 'unauthorized' | 'forbidden' | 'notFound' | 'server' | 'unknown'
+  | 'network'
+  | 'timeout'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'notFound'
+  | 'server'
+  | 'business'
+  | 'unknown'
 
 export interface ApiErrorOptions {
   code?: ApiErrorCode

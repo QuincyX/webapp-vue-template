@@ -22,6 +22,7 @@
 - [ ] 新页面使用 `src/views/<page>/index.vue`
 - [ ] 页面私有模块只被当前页面目录引用，无跨页面导入
 - [ ] 跨页面复用已提升到共享层（components/composables/stores/types/utils/api）
+- [ ] 页面入口不是纯转发组件（`pnpm check:components`，已并入 `pnpm lint`）
 
 ## 文档更新
 
@@ -38,6 +39,7 @@
 - [ ] `pnpm type-check`
 - [ ] `pnpm test:unit:run`
 - [ ] `pnpm build`
+- [ ] `bash deploy/build.sh --skip-install`（涉及构建/发布脚本或 `vite.config.ts` 时）
 - [ ] `pnpm test:e2e`（涉及交互、路由、主题、语言或持久化时）
 - [ ] 其他：
 

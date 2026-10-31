@@ -348,6 +348,13 @@ export const enUS: MessageSchema = {
       requestId: 'Request ID: {id}',
       idle: 'Not tested yet',
     },
+    install: {
+      title: 'Install app',
+      description: 'Add this site to your home screen and launch it like a native app',
+      action: 'Install on this device',
+      iosHint: 'In Safari, tap Share, then choose “Add to Home Screen”.',
+      hint: 'The app shell opens offline after installing; API data still needs a network.',
+    },
   },
   notFound: {
     eyebrow: '404 / LOST IN ORBIT',
@@ -376,6 +383,7 @@ export const enUS: MessageSchema = {
     forbidden: 'You do not have permission to do that.',
     notFound: 'The requested resource was not found.',
     server: 'The server ran into a problem. Please try again.',
+    business: 'The request was rejected by the server. Please check the input and try again.',
     unknown: 'The request failed. Please try again.',
   },
 }

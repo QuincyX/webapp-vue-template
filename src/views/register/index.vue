@@ -1,102 +1,30 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Eye, EyeOff, LoaderCircle, LockKeyhole, Mail, UserRound } from '@lucide/vue'
 
-import { isApiError } from '@/api/errors'
+import { useRegisterForm } from '@/composables/useRegisterForm'
 import { useToast } from '@/composables/useToast'
-import { useAuthStore } from '@/stores/auth'
-import { registerInputSchema, type RegisterInput } from '@/types/auth'
 import { getSafeRedirect } from '@/utils/redirect'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
 const { toast } = useToast()
 
-const form = reactive({
-  name: '',
-  email: '',
-  password: '',
-  confirmPassword: '',
-})
-const errors = reactive<{
-  name?: string
-  email?: string
-  password?: string
-  confirmPassword?: string
-}>({})
-const formError = ref('')
-const showPassword = ref(false)
-const submitting = computed(() => auth.pending)
+const { form, errors, formError, showPassword, submitting, submit } = useRegisterForm()
 
 const loginLink = computed(() => {
   const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : undefined
   return redirect ? { name: 'login', query: { redirect } } : { name: 'login' }
 })
 
-function resetErrors(): void {
-  errors.name = undefined
-  errors.email = undefined
-  errors.password = undefined
-  errors.confirmPassword = undefined
-  formError.value = ''
-}
-
-function validate(): boolean {
-  resetErrors()
-  const result = registerInputSchema.safeParse({
-    name: form.name,
-    email: form.email,
-    password: form.password,
-  })
-
-  if (!result.success) {
-    for (const issue of result.error.issues) {
-      const field = issue.path[0]
-      if ((field === 'name' || field === 'email' || field === 'password') && !errors[field]) {
-        errors[field] = t(issue.message)
-      }
-    }
-  }
-
-  if (!errors.password && form.password !== form.confirmPassword) {
-    errors.confirmPassword = t('auth.validation.passwordMismatch')
-  }
-
-  return !errors.name && !errors.email && !errors.password && !errors.confirmPassword
-}
-
-function resolveSubmitError(error: unknown): string {
-  if (isApiError(error)) {
-    if (error.status === 409) return t('auth.error.emailInUse')
-    if (error.status === 400) return t('auth.error.invalidRegistration')
-    if (error.status === 429) return t('auth.error.tooManyAttempts')
-    if (error.code === 'network' || error.code === 'timeout') return t('auth.error.network')
-  }
-
-  return t('auth.error.generic')
-}
-
 async function handleSubmit(): Promise<void> {
-  if (!validate()) return
+  if (!(await submit())) return
 
-  const input: RegisterInput = {
-    name: form.name,
-    email: form.email,
-    password: form.password,
-  }
-
-  try {
-    await auth.register(input)
-    toast({ title: t('auth.register.success'), variant: 'success' })
-    const target = getSafeRedirect(route.query.redirect, '/')
-    await router.replace(target)
-  } catch (error) {
-    formError.value = resolveSubmitError(error)
-  }
+  toast({ title: t('auth.register.success'), variant: 'success' })
+  await router.replace(getSafeRedirect(route.query.redirect, '/'))
 }
 </script>
 

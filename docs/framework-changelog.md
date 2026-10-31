@@ -24,6 +24,124 @@
 
 ---
 
+## 2026-10-30
+
+### [Framework] 组件结构门禁：禁止纯转发组件
+
+- 日期：2026-10-30
+- 变更：
+  - 新增 `scripts/check-components.mjs`：识别「只 import 同目录组件 + 原样渲染」的空壳 `.vue`。
+  - `package.json` 增加 `check:components`，并作为 `pnpm lint` 的第一道检查。
+  - AGENTS 架构红线新增第 10 条，写明触发条件、修复动作与验证命令。
+- 影响：
+  - 页面入口必须是实现本身，不能是 `./components/Page.vue` 的包装。
+  - `pnpm lint` 失败原因可能来自结构检查，而不是 Oxlint/ESLint。
+- 文档：
+  - [AGENTS.md](../AGENTS.md)
+  - [docs/architecture.md](./architecture.md#7-扩展位置)
+  - [docs/engineering.md](./engineering.md#62-vue-与组件)
+  - [README.md](../README.md)
+- 验证：`pnpm check:components`（无违规）、`pnpm lint` 通过。
+
+### [Framework] 远端数据层：远端 Store 范式、信封适配器、会话失效单一判定、TTL 缓存
+
+- 日期：2026-10-30
+- 变更：
+  - 新增 `src/stores/health.ts` 作为远端 Store 参照：请求单飞、只暴露 `errorCode`/`requestId`、派生值用 `computed`、不持久化无意义状态。
+  - 设置页「后端连接」改为消费该 Store，删除页面内重复的加载/错误状态管理。
+  - 新增 `src/api/envelope.ts`：`{ code, data, message }` / `{ error, msg, data }` 信封解包 + 业务码判定 + Zod 校验，失败归一化为 `ApiError('business')`。
+  - `ApiErrorCode` 增加 `business`，中英文语言包新增 `apiError.business`。
+  - `src/api/http.ts` 抽出 `shouldClearSession()` 作为唯一的会话失效判定，并导出 `UNAUTHORIZED_EVENT` 供 `main.ts` 使用。
+  - 新增 `src/utils/localCache.ts`：内存 + `localStorage` 的 TTL 缓存，提供 `get`/`peek`/`entries`/`setMany`/`clear`。
+- 影响：
+  - 视图不再拼 `apiError.<code>`，统一走错误码；后端换会话方案时只改 `http.ts` 与 `token.ts`。
+  - 用户拥有的状态不得进入 TTL 缓存，避免过期即丢数据。
+- 文档：
+  - [docs/architecture.md](./architecture.md#5-状态与数据所有权)
+  - [docs/architecture.md](./architecture.md#62-远程请求)
+  - [docs/architecture.md](./architecture.md#63-远端-store错误码单飞与缓存)
+  - [docs/engineering.md](./engineering.md#63-状态与持久化)
+  - [docs/engineering.md](./engineering.md#64-api-与数据边界)
+  - [README.md](../README.md)
+- 验证：`pnpm test:unit:run`（新增 localCache 8 项、envelope 8 项、health 4 项）、`pnpm type-check`、`pnpm lint`、`pnpm build`。
+
+### [Framework] 表单与错误文案复用：useLoginForm / useRegisterForm / useApiError
+
+- 日期：2026-10-30
+- 变更：
+  - 登录页与注册页的校验、错误归一化、密码可见性状态下沉到 `src/composables/useLoginForm.ts`、`useRegisterForm.ts`。
+  - 新增 `src/composables/useApiError.ts`：唯一的 `ApiErrorCode → i18n 文案` 映射入口。
+  - 两个页面只保留「成功后 toast + 安全回跳」。
+- 影响：
+  - 新增就地登录（弹窗、抽屉、会话过期提示）时复用同一套校验，不再复制表单逻辑。
+  - 修改错误文案只需改语言包，不再逐页替换。
+- 文档：
+  - [docs/architecture.md](./architecture.md#64-认证与会话)
+  - [docs/engineering.md](./engineering.md#62-vue-与组件)
+  - [README.md](../README.md)
+- 验证：`pnpm test:unit:run`（新增 useLoginForm 6 项）、`pnpm type-check`、`pnpm lint`、`pnpm test:e2e`（登录/注册/校验路径）。
+
+### [Framework] E2E 重构：按域拆分、网络层假接口、响应式溢出断言
+
+- 日期：2026-10-30
+- 变更：
+  - `e2e/app.spec.ts` 拆分为 `auth`、`tasks`、`settings`、`responsive` 四个按域用例文件。
+  - 新增 `e2e/helpers.ts`（登录、清理会话、横向溢出断言）与 `e2e/fixtures.ts`（`page.route` 假接口，自动处理 CORS/OPTIONS 与清理）。
+  - `settings.spec.ts` 使用假接口覆盖后端 5xx 与请求 ID 展示，这是本地 mock 无法表达的路径。
+  - `responsive.spec.ts` 在 390/768/1440 断言无横向溢出。
+  - `playwright.config.ts` 设置 `serviceWorkers: 'block'`，避免 PWA Service Worker 干扰用例。
+- 影响：
+  - 新增用例放在对应用例文件；模拟失败用 `api.fail()`，不要改应用代码或 mock 服务端。
+  - 布局改动必须通过 `responsive.spec.ts`。
+- 文档：
+  - [docs/architecture.md](./architecture.md#8-测试架构)
+  - [docs/engineering.md](./engineering.md#8-测试约束)
+  - [README.md](../README.md)
+- 验证：`pnpm test:e2e`（四个用例文件全部通过）。
+
+### [Framework] 发布流水线：deploy/build.sh 与 deploy/publish.sh
+
+- 日期：2026-10-30
+- 变更：
+  - 新增 `deploy/build.sh`：Node/pnpm 版本闸门、冻结锁文件安装、`STRICT_ENV` 拦截本地 env、清理 `dist/`、执行 `pnpm build`、断言 `dist/index.html` 与 `dist/assets`。
+  - 新增 `deploy/publish.sh`：S3 发布并分离缓存策略（`assets/*` immutable，入口/SW/manifest no-cache），支持 `--build`/`--dry-run`/`--delete`。
+  - 新增 `deploy/deploy.env.example`；凭据只来自环境变量或已被忽略的 `deploy/deploy.env.local`。
+  - CI 增加 `bash -n` 语法检查。
+- 影响：
+  - 发布不再手敲构建命令；本地 env 覆盖不会静默进入生产产物。
+  - 使用其它静态托管时只取 `dist/`，但必须保持同样的缓存分组。
+- 文档：
+  - [docs/engineering.md](./engineering.md#2-安装与启动)
+  - [docs/engineering.md](./engineering.md#3-命令)
+  - [docs/engineering.md](./engineering.md#9-ci-与部署)
+  - [README.md](../README.md)
+- 验证：`bash deploy/build.sh --skip-install` 通过并生成 `dist/`。
+
+### [Framework] PWA：manifest、Service Worker 与安装引导
+
+- 日期：2026-10-30
+- 变更：
+  - 引入 `vite-plugin-pwa`，生成 manifest、Workbox 预缓存与 `registerSW.js`（`autoUpdate`，开发服务器不注册）。
+  - manifest 名称来自 `VITE_APP_TITLE`，`start_url=/?source=pwa`，portrait、standalone，`navigateFallbackDenylist` 排除 `/api/`。
+  - 新增 `public/icons/`（192/512 any 与 maskable）与 `public/apple-touch-icon.png`；`index.html` 增加 apple 主屏元信息与 `viewport-fit=cover`。
+  - 新增 `src/composables/useInstallPrompt.ts`（Chromium 安装事件、iOS 手动引导、standalone 检测），在 `main.ts` 挂载前初始化。
+  - 新增 `src/components/ui/InstallApp.vue`，在设置页按可用性渲染安装入口。
+  - `vite.config.ts` 改为函数式配置以读取构建期标题；`vitest.config.ts` 相应解析一次配置再 `mergeConfig`。
+  - CI 增加 PWA 产物断言（`manifest.webmanifest`、`sw.js`、图标）。
+- 影响：
+  - `pnpm build` 产物包含 SW；`pnpm dev` 不注册，不能用于复现 SW 问题。
+  - 新增 `vite-plugin-pwa` 依赖；禁止再引入第二个 PWA/SW 插件。
+- 文档：
+  - [AGENTS.md](../AGENTS.md)
+  - [docs/architecture.md](./architecture.md#68-pwaservice-worker-与安装)
+  - [docs/engineering.md](./engineering.md#22-pwa-与-service-worker)
+  - [docs/engineering.md](./engineering.md#7-依赖策略)
+  - [docs/engineering.md](./engineering.md#9-ci-与部署)
+  - [README.md](../README.md)
+- 验证：`pnpm build`（生成 manifest/sw/图标）、`pnpm test:unit:run`（新增 install prompt 1 项）、`pnpm type-check`、`pnpm lint`、`pnpm test:e2e`。
+
+> 2026-10-30 全部变更的合并验证：`pnpm docs:check`（17 files / 125 links）、`pnpm format:check`、`pnpm lint`（0 warnings / 0 errors，含 `check:components`）、`pnpm type-check`（TS7 + vue-tsc）、`pnpm test:unit:run`（10 files / 56 passed）、`pnpm build`、`bash deploy/build.sh --skip-install`、`CI=true pnpm test:e2e`（16 passed，preview 产物 + 系统 Edge，`PLAYWRIGHT_CHANNEL=msedge`；当前网络无法下载 Playwright 自带 Chromium）。
+
 ## 2026-10-27
 
 ### [Framework] 页面目录边界：一页一目录，入口固定 index.vue

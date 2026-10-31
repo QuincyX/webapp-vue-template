@@ -23,6 +23,9 @@ export default defineConfig({
     baseURL,
     headless: true,
     locale: 'zh-CN',
+    // The PWA registers a service worker in the production preview; blocking it
+    // keeps tests deterministic (no stale shell, no cross-test cache).
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     actionTimeout: 10_000,

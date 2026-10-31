@@ -3,12 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
       name="description"
       content="Orbit 是一个基于 Vue 3、Vite、TypeScript、Pinia、Axios 与 vue-i18n 的现代化前端工程示例。"
     />
     <meta name="theme-color" content="#f6f5f1" />
+    <!-- iOS ignores the manifest icons, so the PNG below and these flags are required. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Orbit" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Orbit</title>
     <script>
       // Apply the saved theme before the first paint to avoid a flash of the wrong color scheme.

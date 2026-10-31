@@ -338,6 +338,13 @@ export const zhCN = {
       requestId: '请求 ID：{id}',
       idle: '尚未测试',
     },
+    install: {
+      title: '安装应用',
+      description: '把这个站点添加到主屏幕，像原生应用一样启动',
+      action: '安装到设备',
+      iosHint: '在 Safari 中点击“分享”，然后选择“添加到主屏幕”。',
+      hint: '安装后应用外壳可离线打开；接口数据仍然需要网络。',
+    },
   },
   notFound: {
     eyebrow: '404 / LOST IN ORBIT',
@@ -365,6 +372,7 @@ export const zhCN = {
     forbidden: '没有权限执行此操作。',
     notFound: '请求的资源不存在。',
     server: '服务器开小差了，请稍后重试。',
+    business: '请求被服务端拒绝，请检查输入后重试。',
     unknown: '请求失败，请稍后重试。',
   },
 }

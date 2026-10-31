@@ -2,10 +2,12 @@ import axios, { type AxiosRequestConfig } from 'axios'
 
 import { env } from '@/config/env'
 import { getCurrentLocale } from '@/i18n'
-import { normalizeApiError } from './errors'
+import { normalizeApiError, type ApiError } from './errors'
 import { clearAccessToken, getAccessToken } from './token'
 
 const REQUEST_ID_HEADER = 'X-Request-Id'
+
+const UNAUTHORIZED_EVENT = 'orbit:unauthorized'
 
 function createRequestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -13,6 +15,25 @@ function createRequestId(): string {
   }
 
   return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+/**
+ * Single decision point for "the session is gone, sign the user out".
+ *
+ * Every backend states this differently: HTTP 401, HTTP 200 with a business code,
+ * a redirect to a login page, or an expired cookie. Keep that knowledge here so
+ * no page or store has to re-implement it, and so switching to HttpOnly cookies
+ * means editing this file plus `token.ts` — not grepping for 401 checks.
+ *
+ * Defaults to the HTTP 401 convention used by this template. When a backend wraps
+ * errors (see `./envelope.ts`), narrow it here, e.g.:
+ *
+ * ```ts
+ * return error.status === 401 && (error.details as { code?: string })?.code === 'TOKEN_EXPIRED'
+ * ```
+ */
+function shouldClearSession(error: ApiError): boolean {
+  return error.status === 401
 }
 
 export const http = axios.create({
@@ -43,9 +64,9 @@ http.interceptors.response.use(
   (error: unknown) => {
     const apiError = normalizeApiError(error)
 
-    if (apiError.status === 401) {
+    if (shouldClearSession(apiError)) {
       clearAccessToken()
-      window.dispatchEvent(new CustomEvent('orbit:unauthorized'))
+      window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT))
     }
 
     return Promise.reject(apiError)
@@ -61,4 +82,4 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
   return response.data
 }
 
-export { REQUEST_ID_HEADER }
+export { REQUEST_ID_HEADER, UNAUTHORIZED_EVENT }
